@@ -289,14 +289,119 @@
 
     .markdown-input-container {
       flex: 1;
-      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      overflow: visible;
       padding: var(--space-md);
       background: var(--color-surface);
+      position: relative;
     }
+
+    /* 文字按钮工具栏 */
+    .md-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 0 0 var(--space-sm) 0;
+      position: relative;
+      z-index: 20;
+    }
+    .md-tool-group { position: relative; }
+    .md-tool-trigger {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 6px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--color-primary);
+      background: var(--color-bg);
+      border: 1px solid var(--color-border);
+      border-radius: 7px;
+      cursor: pointer;
+      transition: all 120ms;
+    }
+    .md-tool-trigger:hover { border-color: var(--color-accent); color: var(--color-accent); }
+    .md-tool-trigger.active {
+      background: var(--color-accent);
+      border-color: var(--color-accent);
+      color: #fff;
+    }
+    .md-tool-caret { font-size: 10px; opacity: 0.7; }
+    .md-tool-dropdown {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0;
+      min-width: 200px;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 10px;
+      box-shadow: 0 8px 28px rgba(0,0,0,0.16);
+      padding: 6px;
+      z-index: 50;
+    }
+    .md-tool-item {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+      width: 100%;
+      padding: 8px 10px;
+      border: none;
+      background: transparent;
+      border-radius: 7px;
+      cursor: pointer;
+      text-align: left;
+      transition: background 100ms;
+    }
+    .md-tool-item:hover { background: var(--color-bg); }
+    .md-tool-item-label { font-size: 14px; font-weight: 600; color: var(--color-primary); }
+    .md-tool-item-desc { font-size: 12px; color: var(--color-secondary, #999); font-family: var(--font-mono); }
+    .md-toolbar-hint {
+      margin-left: auto;
+      font-size: 12px;
+      color: var(--color-secondary, #999);
+    }
+
+    /* 斜杠命令菜单 */
+    .slash-menu {
+      position: fixed;
+      z-index: 1000;
+      width: 240px;
+      max-height: 300px;
+      overflow-y: auto;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 10px;
+      box-shadow: 0 10px 32px rgba(0,0,0,0.18);
+      padding: 6px;
+    }
+    .slash-item {
+      display: grid;
+      grid-template-columns: 24px 1fr auto;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      padding: 8px 10px;
+      border: none;
+      background: transparent;
+      border-radius: 7px;
+      cursor: pointer;
+      text-align: left;
+    }
+    .slash-item.active { background: var(--color-accent); }
+    .slash-item.active .slash-item-label,
+    .slash-item.active .slash-item-desc,
+    .slash-item.active .slash-item-icon { color: #fff; }
+    .slash-item-icon { font-size: 14px; font-weight: 700; text-align: center; color: var(--color-accent); }
+    .slash-item-label { font-size: 14px; font-weight: 600; color: var(--color-primary); }
+    .slash-item-desc { font-size: 11px; color: var(--color-secondary, #999); font-family: var(--font-mono); }
 
     .markdown-input {
       width: 100%;
-      height: 100%;
+      flex: 1;
+      min-height: 0;
       padding: var(--space-lg);
       border: 1px solid var(--color-border);
       border-radius: 8px;
@@ -1622,7 +1727,7 @@
           <rect x="6" y="24" width="20" height="2" rx="1" fill="white" opacity="0.7"/>
         </svg>
         <span>公众号排版器</span>
-        <span class="creator-info">Created by <a href="https://huasheng.ai" target="_blank" rel="noopener noreferrer">花生</a></span>
+        <span class="creator-info">Created by <a href="https://huasheng.ai" target="_blank" rel="noopener noreferrer">花生</a> + <a href="https://santaya.chat" target="_blank" rel="noopener noreferrer">Santa</a></span>
       </div>
       <div class="header-actions">
         <nav class="header-links">
@@ -1632,7 +1737,7 @@
           <a class="header-link primary" href="https://nf.video/o9jj0s" target="_blank" rel="noopener noreferrer">AI产品购买</a>
           -->
         </nav>
-        <a href="https://github.com/alchaincyf/huasheng_editor"
+        <a href="https://github.com/huangyaling658-creator/santaya-editor"
            target="_blank"
            rel="noopener noreferrer"
            class="github-link"
@@ -1688,12 +1793,47 @@
       <!-- 编辑器面板 -->
       <div class="editor-panel">
         <div class="markdown-input-container">
+          <!-- 文字按钮工具栏（分组折叠） -->
+          <div class="md-toolbar">
+            <div
+              class="md-tool-group"
+              v-for="group in toolbarGroups"
+              :key="group.name"
+            >
+              <button
+                type="button"
+                class="md-tool-trigger"
+                :class="{ active: openToolbarGroup === group.name }"
+                @click="toggleToolbarGroup(group.name)"
+              >
+                {{ group.name }}
+                <span class="md-tool-caret">▾</span>
+              </button>
+              <div class="md-tool-dropdown" v-if="openToolbarGroup === group.name">
+                <button
+                  type="button"
+                  class="md-tool-item"
+                  v-for="id in group.items"
+                  :key="id"
+                  @click="onToolbarClick(id)"
+                >
+                  <span class="md-tool-item-label">{{ getCommand(id).label }}</span>
+                  <span class="md-tool-item-desc">{{ getCommand(id).desc }}</span>
+                </button>
+              </div>
+            </div>
+            <span class="md-toolbar-hint">选中文字后点按钮即可 · 也可输入 / 唤出菜单</span>
+          </div>
           <textarea
             ref="editorTextarea"
             v-model="markdownInput"
             class="markdown-input"
             :class="{ 'drag-over': isDraggingOver }"
             @paste="handleSmartPaste"
+            @keydown="handleEditorKeydown"
+            @input="handleEditorInput"
+            @click="openToolbarGroup = null"
+            @blur="closeSlashMenu"
             @drop="handleDrop"
             @dragover="handleDragOver"
             @dragenter="handleDragEnter"
@@ -1711,6 +1851,26 @@
 💡 提示：可以直接粘贴截图，或拖拽图片文件到这里"
             spellcheck="false"
           ></textarea>
+          <!-- 斜杠命令菜单 -->
+          <div
+            class="slash-menu"
+            v-if="slashMenu.show && filteredSlashCommands.length"
+            :style="{ top: slashMenu.top + 'px', left: slashMenu.left + 'px' }"
+          >
+            <button
+              type="button"
+              class="slash-item"
+              :class="{ active: idx === slashMenu.activeIndex }"
+              v-for="(cmd, idx) in filteredSlashCommands"
+              :key="cmd.id"
+              @mousedown.prevent="chooseSlashCommand(cmd.id)"
+              @mouseenter="slashMenu.activeIndex = idx"
+            >
+              <span class="slash-item-icon">{{ cmd.icon }}</span>
+              <span class="slash-item-label">{{ cmd.label }}</span>
+              <span class="slash-item-desc">{{ cmd.desc }}</span>
+            </button>
+          </div>
         </div>
 
         <!-- 编辑器底部工具栏 -->
@@ -1946,7 +2106,7 @@
 
     <!-- 右下角浮动广告（已暂时注释关闭；需恢复时取消本块外层注释即可） -->
     <!-- AD-DISABLED-START
-    <div v-if="floatingAd.isVisible" class="floating-ad">
+    <div v-if="floatingAd.isVisible && floatingAd.ads.length" class="floating-ad">
       折叠状态
       <div v-if="!floatingAd.isExpanded" class="floating-ad__collapsed" @click="toggleFloatingAd">
         <div class="floating-ad__collapsed-content">

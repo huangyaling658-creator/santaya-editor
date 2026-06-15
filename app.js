@@ -557,6 +557,40 @@ const editorApp = createApp({
   data() {
     return {
       markdownInput: '',
+      // ===== 编辑器增强：斜杠命令菜单 =====
+      slashMenu: {
+        show: false,
+        top: 0,
+        left: 0,
+        query: '',
+        activeIndex: 0,
+        triggerPos: -1   // '/' 字符在文本中的位置
+      },
+      slashCommands: [
+        { id: 'h1',       icon: 'H1', label: '一级标题',   desc: '# 大标题',        keywords: 'h1 heading 标题 biaoti yiji' },
+        { id: 'h2',       icon: 'H2', label: '二级标题',   desc: '## 段落大标题',    keywords: 'h2 heading 标题 biaoti erji' },
+        { id: 'h3',       icon: 'H3', label: '三级标题',   desc: '### 小节标题',     keywords: 'h3 heading 标题 biaoti sanji' },
+        { id: 'quote',    icon: '❝',  label: '引用',       desc: '> 引用块',         keywords: 'quote yinyong blockquote' },
+        { id: 'callout',  icon: '💡', label: '高亮提示卡', desc: '醒目的提示卡片',    keywords: 'callout 高亮 gaoliang 提示 tishi card 卡片' },
+        { id: 'ul',       icon: '•',  label: '无序列表',   desc: '- 项目符号',       keywords: 'ul list 无序 列表 liebiao' },
+        { id: 'ol',       icon: '1.', label: '有序列表',   desc: '1. 编号列表',      keywords: 'ol list 有序 编号 列表 liebiao' },
+        { id: 'codeblock',icon: '{}', label: '代码块',     desc: '```带语法高亮```',  keywords: 'code 代码 daima codeblock' },
+        { id: 'table',    icon: '▦',  label: '表格',       desc: '插入 2 列表格',     keywords: 'table 表格 biaoge' },
+        { id: 'hr',       icon: '—',  label: '分割线',     desc: '--- 水平分隔',     keywords: 'hr divider 分割 fenge 分隔' },
+        { id: 'image',    icon: '🖼', label: '图片',       desc: '![](链接)',        keywords: 'image 图片 tupian img' },
+        { id: 'link',     icon: '🔗', label: '链接',       desc: '[文字](链接)',      keywords: 'link 链接 lianjie url' },
+        { id: 'bold',     icon: 'B',  label: '加粗',       desc: '**重点**',         keywords: 'bold 加粗 jiacu 粗体 重点 zhongdian' },
+        { id: 'italic',   icon: 'I',  label: '斜体',       desc: '*斜体*',           keywords: 'italic 斜体 xieti' },
+        { id: 'inlinecode',icon:'</>',label: '行内代码',   desc: '`代码`',           keywords: 'code 行内代码 daima inline' }
+      ],
+      // 文字按钮工具栏：分组折叠（点组名展开该组按钮）
+      openToolbarGroup: null,
+      toolbarGroups: [
+        { name: '标题', items: ['h1', 'h2', 'h3'] },
+        { name: '强调', items: ['bold', 'italic', 'inlinecode', 'callout', 'quote'] },
+        { name: '列表', items: ['ul', 'ol'] },
+        { name: '插入', items: ['image', 'link', 'table', 'codeblock', 'hr'] }
+      ],
       renderedContent: '',
       currentStyle: 'wechat-default',
       copySuccess: false,
@@ -581,40 +615,9 @@ const editorApp = createApp({
       previewMode: 'wechat',  // 预览模式：'wechat' 或 'xiaohongshu'
       xiaohongshuImages: [],  // 生成的小红书图片数组
       xiaohongshuGenerating: false,  // 是否正在生成小红书图片
-      // 右下角浮动广告
+      // 右下角浮动广告（原作者的 affiliate 推广已移除，留空即不显示）
       floatingAd: {
-        ads: [
-          {
-            id: 'yinhe',
-            icon: '🎬',
-            title: '银河录像局',
-            subtitle: 'ChatGPT/Netflix/Claude 一站合租',
-            tag: '93折',
-            tagColor: 'orange',
-            link: 'https://nf.video/o9jj0s',
-            coupon: 'huasheng'
-          },
-          {
-            id: 'huanqiu',
-            icon: '🌍',
-            title: '环球巴士',
-            subtitle: 'ChatGPT Plus合租 35元/月',
-            tag: '热门',
-            tagColor: 'blue',
-            link: 'https://universalbus.cn/?s=5HCba2gPfO',
-            coupon: null
-          },
-          {
-            id: 'zsxq',
-            icon: '🔥',
-            title: 'AI编程知识星球',
-            subtitle: '1500+人已加入 / 限量30元券',
-            tag: '限时335元',
-            tagColor: 'purple',
-            link: 'https://t.zsxq.com/K3vsN',
-            coupon: '30元优惠券'
-          }
-        ],
+        ads: [],
         isExpanded: false,
         isVisible: false,
         currentIndex: 0
@@ -731,6 +734,17 @@ const editorApp = createApp({
       }
 
       return this.floatingAd.ads[this.floatingAd.currentIndex] || this.floatingAd.ads[0];
+    },
+
+    // 根据斜杠菜单输入框里的关键词过滤命令
+    filteredSlashCommands() {
+      const q = (this.slashMenu.query || '').trim().toLowerCase();
+      if (!q) return this.slashCommands;
+      return this.slashCommands.filter(c =>
+        c.label.toLowerCase().includes(q) ||
+        c.keywords.toLowerCase().includes(q) ||
+        c.id.includes(q)
+      );
     }
   },
 
@@ -982,7 +996,7 @@ const markdown = \`![图片](img://\${imageId})\`;
 - 粘贴图片试试智能压缩功能
 - 刷新页面看看内容是否保留
 
-**🌟 开源项目**：如果觉得有用，欢迎访问 [GitHub 仓库](https://github.com/alchaincyf/huasheng_editor) 给个 Star！`;
+**🌟 开源项目**：如果觉得有用，欢迎访问 [GitHub 仓库](https://github.com/huangyaling658-creator/santaya-editor) 给个 Star！`;
     },
 
     handleFileUpload(event) {
@@ -2760,6 +2774,230 @@ const markdown = \`![图片](img://\${imageId})\`;
     },
 
     // 在光标位置插入文本
+    // ============ 编辑器增强：文字按钮工具栏 + 斜杠菜单 ============
+
+    // 根据 id 取命令对象（工具栏 / 斜杠菜单共用）
+    getCommand(id) {
+      return this.slashCommands.find(c => c.id === id);
+    },
+
+    // 点击工具栏组名：展开 / 收起该组
+    toggleToolbarGroup(name) {
+      this.openToolbarGroup = this.openToolbarGroup === name ? null : name;
+    },
+
+    // 工具栏按钮点击：执行命令并收起分组
+    onToolbarClick(id) {
+      this.openToolbarGroup = null;
+      this.applyCommand(id);
+    },
+
+    // 命令分发：把某个 id 应用到当前选区 / 光标
+    applyCommand(id) {
+      switch (id) {
+        case 'h1':         this.toggleLinePrefix('# ');  break;
+        case 'h2':         this.toggleLinePrefix('## '); break;
+        case 'h3':         this.toggleLinePrefix('### ');break;
+        case 'quote':      this.toggleLinePrefix('> ');  break;
+        case 'ul':         this.toggleLinePrefix('- ');  break;
+        case 'ol':         this.toggleLinePrefix('1. '); break;
+        case 'bold':       this.wrapSelection('**', '**', '粗体文字'); break;
+        case 'italic':     this.wrapSelection('*', '*', '斜体文字');   break;
+        case 'inlinecode': this.wrapSelection('`', '`', '代码');       break;
+        case 'link':       this.wrapSelection('[', '](https://)', '链接文字'); break;
+        case 'image':      this.insertBlock('![](https://)'); break;
+        case 'hr':         this.insertBlock('\n---\n'); break;
+        case 'codeblock':  this.insertBlock('```js\n在这里写代码\n```'); break;
+        case 'table':      this.insertBlock('| 表头 | 表头 |\n| --- | --- |\n| 内容 | 内容 |\n| 内容 | 内容 |'); break;
+        case 'callout':    this.insertBlock('> 💡 **提示**：在这里写一句想要醒目强调的话'); break;
+      }
+    },
+
+    // 在选区两侧包裹标记（如 ** **）；已包裹则取消；无选区则插占位并选中占位
+    wrapSelection(before, after, placeholder) {
+      const ta = this.$refs.editorTextarea;
+      if (!ta) return;
+      const start = ta.selectionStart;
+      const end = ta.selectionEnd;
+      const val = this.markdownInput;
+      let sel = val.substring(start, end);
+      const hasSelection = sel.length > 0;
+
+      // 已被同样的标记包裹 → 取消
+      if (hasSelection &&
+          val.substring(start - before.length, start) === before &&
+          val.substring(end, end + after.length) === after) {
+        this.markdownInput = val.substring(0, start - before.length) + sel + val.substring(end + after.length);
+        this.$nextTick(() => {
+          ta.focus();
+          ta.selectionStart = start - before.length;
+          ta.selectionEnd = end - before.length;
+        });
+        return;
+      }
+
+      if (!hasSelection) sel = placeholder || '';
+      this.markdownInput = val.substring(0, start) + before + sel + after + val.substring(end);
+      this.$nextTick(() => {
+        ta.focus();
+        ta.selectionStart = start + before.length;
+        ta.selectionEnd = start + before.length + sel.length;
+      });
+    },
+
+    // 给选中范围内每一整行加 / 去前缀（标题、引用、列表）
+    toggleLinePrefix(prefix) {
+      const ta = this.$refs.editorTextarea;
+      if (!ta) return;
+      const val = this.markdownInput;
+      const start = ta.selectionStart;
+      const end = ta.selectionEnd;
+      const lineStart = val.lastIndexOf('\n', start - 1) + 1;
+      let lineEnd = val.indexOf('\n', end);
+      if (lineEnd === -1) lineEnd = val.length;
+
+      const lines = val.substring(lineStart, lineEnd).split('\n');
+      const stripRe = /^(#{1,6}\s|>\s|-\s|\d+\.\s)/;
+      const allHave = lines.every(l => l.startsWith(prefix));
+      const newLines = lines.map(l => {
+        const bare = l.replace(stripRe, '');
+        return allHave ? bare : (prefix + bare);
+      });
+      const newBlock = newLines.join('\n');
+      this.markdownInput = val.substring(0, lineStart) + newBlock + val.substring(lineEnd);
+      this.$nextTick(() => {
+        ta.focus();
+        ta.selectionStart = lineStart;
+        ta.selectionEnd = lineStart + newBlock.length;
+      });
+    },
+
+    // 在光标处独占一行插入一段模板（图片、表格、分割线等）
+    insertBlock(text) {
+      const ta = this.$refs.editorTextarea;
+      if (!ta) return;
+      const val = this.markdownInput;
+      const start = ta.selectionStart;
+      const end = ta.selectionEnd;
+      const head = val.substring(0, start);
+      const needNL = head.length > 0 && !head.endsWith('\n');
+      const insert = (needNL ? '\n' : '') + text;
+      this.markdownInput = head + insert + val.substring(end);
+      this.$nextTick(() => {
+        ta.focus();
+        ta.selectionStart = ta.selectionEnd = start + insert.length;
+      });
+    },
+
+    // textarea keydown：先处理斜杠菜单导航，再处理（隐藏的）快捷键
+    handleEditorKeydown(e) {
+      if (this.slashMenu.show) {
+        const items = this.filteredSlashCommands;
+        if (e.key === 'ArrowDown') { e.preventDefault(); this.slashMenu.activeIndex = (this.slashMenu.activeIndex + 1) % items.length; return; }
+        if (e.key === 'ArrowUp')   { e.preventDefault(); this.slashMenu.activeIndex = (this.slashMenu.activeIndex - 1 + items.length) % items.length; return; }
+        if (e.key === 'Enter')     { e.preventDefault(); const it = items[this.slashMenu.activeIndex]; if (it) this.chooseSlashCommand(it.id); return; }
+        if (e.key === 'Escape')    { e.preventDefault(); this.closeSlashMenu(); return; }
+      }
+
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod) return;
+      // 隐藏的快捷键（默默送，用户无需知道）
+      if (!e.altKey && !e.shiftKey) {
+        const k = e.key.toLowerCase();
+        if (k === 'b') { e.preventDefault(); this.applyCommand('bold'); return; }
+        if (k === 'i') { e.preventDefault(); this.applyCommand('italic'); return; }
+        if (k === 'e') { e.preventDefault(); this.applyCommand('inlinecode'); return; }
+        if (k === 'k') { e.preventDefault(); this.applyCommand('link'); return; }
+      }
+      if (e.altKey && !e.shiftKey) {
+        if (e.code === 'Digit1') { e.preventDefault(); this.applyCommand('h1'); return; }
+        if (e.code === 'Digit2') { e.preventDefault(); this.applyCommand('h2'); return; }
+        if (e.code === 'Digit3') { e.preventDefault(); this.applyCommand('h3'); return; }
+        if (e.code === 'KeyQ')   { e.preventDefault(); this.applyCommand('quote'); return; }
+        if (e.code === 'KeyC')   { e.preventDefault(); this.applyCommand('codeblock'); return; }
+      }
+    },
+
+    // textarea input：检测是否在打 "/" 命令
+    handleEditorInput() {
+      const ta = this.$refs.editorTextarea;
+      if (!ta) return;
+      const pos = ta.selectionStart;
+      const upto = ta.value.substring(0, pos);
+      const m = upto.match(/(^|\s)\/([^\s/]*)$/);
+      if (m) {
+        this.slashMenu.query = m[2];
+        this.slashMenu.triggerPos = pos - m[2].length - 1;
+        this.slashMenu.activeIndex = 0;
+        this.slashMenu.show = true;
+        this.$nextTick(() => this.positionSlashMenu());
+      } else {
+        this.closeSlashMenu();
+      }
+    },
+
+    // 选中一个斜杠命令：先删掉已输入的 "/query"，再执行
+    chooseSlashCommand(id) {
+      const ta = this.$refs.editorTextarea;
+      const trigger = this.slashMenu.triggerPos;
+      this.closeSlashMenu();
+      if (ta && trigger >= 0) {
+        const pos = ta.selectionStart;
+        const val = this.markdownInput;
+        this.markdownInput = val.substring(0, trigger) + val.substring(pos);
+        // 等内容更新后把光标放回 "/" 处再执行命令
+        this.$nextTick(() => {
+          ta.focus();
+          ta.selectionStart = ta.selectionEnd = trigger;
+          this.$nextTick(() => this.applyCommand(id));
+        });
+      } else {
+        this.applyCommand(id);
+      }
+    },
+
+    closeSlashMenu() {
+      this.slashMenu.show = false;
+      this.slashMenu.query = '';
+      this.slashMenu.triggerPos = -1;
+    },
+
+    // 计算光标在屏幕上的位置，把斜杠菜单浮在光标下方
+    positionSlashMenu() {
+      const ta = this.$refs.editorTextarea;
+      if (!ta) return;
+      const pos = ta.selectionStart;
+      const div = document.createElement('div');
+      const style = window.getComputedStyle(ta);
+      [
+        'boxSizing','width','paddingTop','paddingRight','paddingBottom','paddingLeft',
+        'borderTopWidth','borderRightWidth','borderBottomWidth','borderLeftWidth',
+        'fontFamily','fontSize','fontWeight','fontStyle','letterSpacing','lineHeight',
+        'textTransform','wordSpacing','tabSize'
+      ].forEach(p => { div.style[p] = style[p]; });
+      div.style.position = 'absolute';
+      div.style.visibility = 'hidden';
+      div.style.whiteSpace = 'pre-wrap';
+      div.style.wordWrap = 'break-word';
+      div.style.overflow = 'hidden';
+      div.textContent = ta.value.substring(0, pos);
+      const marker = document.createElement('span');
+      marker.textContent = ta.value.substring(pos) || '.';
+      div.appendChild(marker);
+      document.body.appendChild(div);
+      const rect = ta.getBoundingClientRect();
+      const lh = parseFloat(style.lineHeight) || 20;
+      let top = rect.top + marker.offsetTop - ta.scrollTop + lh;
+      let left = rect.left + marker.offsetLeft - ta.scrollLeft;
+      document.body.removeChild(div);
+      // 防止超出右 / 下边界
+      const menuW = 240, menuH = 300;
+      if (left + menuW > window.innerWidth) left = window.innerWidth - menuW - 12;
+      if (top + menuH > window.innerHeight) top = rect.top + marker.offsetTop - ta.scrollTop - menuH;
+      this.slashMenu.top = Math.max(8, top);
+      this.slashMenu.left = Math.max(8, left);
+    },
+
     insertTextAtCursor(textarea, text) {
       const start = textarea.selectionStart;
       const end = textarea.selectionEnd;
