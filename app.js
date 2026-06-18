@@ -575,21 +575,19 @@ const editorApp = createApp({
         { id: 'ul',       icon: '•',  label: '无序列表',   desc: '- 项目符号',       keywords: 'ul list 无序 列表 liebiao' },
         { id: 'ol',       icon: '1.', label: '有序列表',   desc: '1. 编号列表',      keywords: 'ol list 有序 编号 列表 liebiao' },
         { id: 'codeblock',icon: '{}', label: '代码块',     desc: '```带语法高亮```',  keywords: 'code 代码 daima codeblock' },
-        { id: 'table',    icon: '▦',  label: '表格',       desc: '插入 2 列表格',     keywords: 'table 表格 biaoge' },
         { id: 'hr',       icon: '—',  label: '分割线',     desc: '--- 水平分隔',     keywords: 'hr divider 分割 fenge 分隔' },
         { id: 'image',    icon: '🖼', label: '图片',       desc: '![](链接)',        keywords: 'image 图片 tupian img' },
         { id: 'link',     icon: '🔗', label: '链接',       desc: '[文字](链接)',      keywords: 'link 链接 lianjie url' },
         { id: 'bold',     icon: 'B',  label: '加粗',       desc: '**重点**',         keywords: 'bold 加粗 jiacu 粗体 重点 zhongdian' },
-        { id: 'italic',   icon: 'I',  label: '斜体',       desc: '*斜体*',           keywords: 'italic 斜体 xieti' },
-        { id: 'inlinecode',icon:'</>',label: '行内代码',   desc: '`代码`',           keywords: 'code 行内代码 daima inline' }
+        { id: 'italic',   icon: 'I',  label: '斜体',       desc: '*斜体*',           keywords: 'italic 斜体 xieti' }
       ],
       // 文字按钮工具栏：分组折叠（点组名展开该组按钮）
       openToolbarGroup: null,
       toolbarGroups: [
         { name: '标题', items: ['h1', 'h2', 'h3'] },
-        { name: '强调', items: ['bold', 'italic', 'inlinecode', 'callout', 'quote'] },
+        { name: '强调', items: ['bold', 'italic', 'callout', 'quote'] },
         { name: '列表', items: ['ul', 'ol'] },
-        { name: '插入', items: ['image', 'link', 'table', 'codeblock', 'hr'] }
+        { name: '插入', items: ['image', 'link', 'codeblock', 'hr'] }
       ],
       renderedContent: '',
       currentStyle: 'wechat-default',
@@ -1093,6 +1091,7 @@ const markdown = \`![图片](img://\${imageId})\`;
       if (!ta || !pv) return;
 
       this._syncLock = false;
+      this._jumpingToCaret = false;
       // scroll 同步：加锁防止两侧互相触发死循环
       ta.addEventListener('scroll', () => {
         if (this._syncLock) return;
@@ -1101,7 +1100,8 @@ const markdown = \`![图片](img://\${imageId})\`;
         requestAnimationFrame(() => { this._syncLock = false; });
       });
       pv.addEventListener('scroll', () => {
-        if (this._syncLock) return;
+        // _jumpingToCaret: 由 jumpPreviewToCaret 触发的预览滚动，不反推编辑器
+        if (this._syncLock || this._jumpingToCaret) return;
         this._syncLock = true;
         this.syncEditorToPreview();
         requestAnimationFrame(() => { this._syncLock = false; });
@@ -1158,25 +1158,21 @@ const markdown = \`![图片](img://\${imageId})\`;
     syncPreviewToEditor() {
       const ta = this.$refs.editorTextarea;
       const pv = this.$refs.previewScroll;
-      const denom = ta.scrollHeight - ta.clientHeight;
-      const ratio = denom > 0 ? ta.scrollTop / denom : 0;
-      const topLine = ratio * this.totalSourceLines();
-      pv.scrollTop = this.previewScrollForLine(topLine);
+      const taDenom = ta.scrollHeight - ta.clientHeight;
+      const pvDenom = pv.scrollHeight - pv.clientHeight;
+      if (taDenom <= 0 || pvDenom <= 0) return;
+      const ratio = ta.scrollTop / taDenom;
+      pv.scrollTop = ratio * pvDenom;
     },
 
     syncEditorToPreview() {
       const ta = this.$refs.editorTextarea;
       const pv = this.$refs.previewScroll;
-      const els = this.sourceLineEls();
-      if (!els.length) return;
-      // 找到滚动到顶部的锚点元素
-      let top = els[0];
-      for (const o of els) {
-        if (this.elTopInScroll(o.el, pv) <= pv.scrollTop + 6) top = o;
-        else break;
-      }
-      const denom = ta.scrollHeight - ta.clientHeight;
-      ta.scrollTop = (top.line / this.totalSourceLines()) * denom;
+      const taDenom = ta.scrollHeight - ta.clientHeight;
+      const pvDenom = pv.scrollHeight - pv.clientHeight;
+      if (taDenom <= 0 || pvDenom <= 0) return;
+      const ratio = pv.scrollTop / pvDenom;
+      ta.scrollTop = ratio * taDenom;
     },
 
     caretSourceLine() {
@@ -1196,10 +1192,10 @@ const markdown = \`![图片](img://\${imageId})\`;
       const pv = this.$refs.previewScroll;
       if (!pv) return;
       const line = this.caretSourceLine();
-      this._syncLock = true;
-      pv.scrollTo({ top: this.previewScrollForLine(line), behavior: 'smooth' });
+      this._jumpingToCaret = true;
+      pv.scrollTop = this.previewScrollForLine(line);
       clearTimeout(this._syncUnlock);
-      this._syncUnlock = setTimeout(() => { this._syncLock = false; }, 260);
+      this._syncUnlock = setTimeout(() => { this._jumpingToCaret = false; }, 300);
       // 高亮对应块
       const els = this.sourceLineEls();
       let match = els.length ? els[0] : null;
@@ -1348,7 +1344,7 @@ const markdown = \`![图片](img://\${imageId})\`;
       this.groupConsecutiveImages(doc);
 
       Object.keys(style).forEach(selector => {
-        if (selector === 'pre' || selector === 'code' || selector === 'pre code') {
+        if (selector === 'pre' || selector === 'pre code') {
           return;
         }
 
@@ -1357,6 +1353,10 @@ const markdown = \`![图片](img://\${imageId})\`;
         elements.forEach(el => {
           // 如果是图片且在网格容器内，跳过样式应用
           if (el.tagName === 'IMG' && el.closest('.image-grid')) {
+            return;
+          }
+          // code 只处理行内形式（不在 pre 里）；pre code 在上面已经跳过
+          if (el.tagName === 'CODE' && el.closest('pre')) {
             return;
           }
 
@@ -2819,29 +2819,53 @@ const markdown = \`![图片](img://\${imageId})\`;
       if (!ta) return;
       const start = ta.selectionStart;
       const end = ta.selectionEnd;
-      const val = this.markdownInput;
+      const savedScrollTop = ta.scrollTop;
+      const val = ta.value;
       let sel = val.substring(start, end);
       const hasSelection = sel.length > 0;
 
-      // 已被同样的标记包裹 → 取消
+      // 多行选区：逐行包裹，标记插在列表/标题前缀之后
+      if (hasSelection && sel.includes('\n')) {
+        const blockPrefixRe = /^(\s*(?:\d+\.\s+|-\s+|\*\s+|#{1,6}\s+|>\s+)*)/;
+        const lines = sel.split('\n');
+        const newLines = lines.map(line => {
+          if (!line.trim()) return line;
+          const prefixStr = (line.match(blockPrefixRe) || ['', ''])[1];
+          const content = line.slice(prefixStr.length);
+          if (!content.trim()) return line;
+          if (content.startsWith(before) && content.endsWith(after))
+            return prefixStr + content.slice(before.length, content.length - after.length);
+          return prefixStr + before + content + after;
+        });
+        const replacement = newLines.join('\n');
+        ta.setSelectionRange(start, end);
+        document.execCommand('insertText', false, replacement);
+        this.$nextTick(() => {
+          ta.scrollTop = savedScrollTop;
+          ta.setSelectionRange(start, start + replacement.length);
+        });
+        return;
+      }
+
+      // 单行：已被同样的标记包裹 → 取消
       if (hasSelection &&
           val.substring(start - before.length, start) === before &&
           val.substring(end, end + after.length) === after) {
-        this.markdownInput = val.substring(0, start - before.length) + sel + val.substring(end + after.length);
+        ta.setSelectionRange(start - before.length, end + after.length);
+        document.execCommand('insertText', false, sel);
         this.$nextTick(() => {
-          ta.focus();
-          ta.selectionStart = start - before.length;
-          ta.selectionEnd = end - before.length;
+          ta.scrollTop = savedScrollTop;
+          ta.setSelectionRange(start - before.length, end - before.length);
         });
         return;
       }
 
       if (!hasSelection) sel = placeholder || '';
-      this.markdownInput = val.substring(0, start) + before + sel + after + val.substring(end);
+      ta.setSelectionRange(start, end);
+      document.execCommand('insertText', false, before + sel + after);
       this.$nextTick(() => {
-        ta.focus();
-        ta.selectionStart = start + before.length;
-        ta.selectionEnd = start + before.length + sel.length;
+        ta.scrollTop = savedScrollTop;
+        ta.setSelectionRange(start + before.length, start + before.length + sel.length);
       });
     },
 
@@ -2849,9 +2873,10 @@ const markdown = \`![图片](img://\${imageId})\`;
     toggleLinePrefix(prefix) {
       const ta = this.$refs.editorTextarea;
       if (!ta) return;
-      const val = this.markdownInput;
+      const val = ta.value;
       const start = ta.selectionStart;
       const end = ta.selectionEnd;
+      const savedScrollTop = ta.scrollTop;
       const lineStart = val.lastIndexOf('\n', start - 1) + 1;
       let lineEnd = val.indexOf('\n', end);
       if (lineEnd === -1) lineEnd = val.length;
@@ -2864,11 +2889,11 @@ const markdown = \`![图片](img://\${imageId})\`;
         return allHave ? bare : (prefix + bare);
       });
       const newBlock = newLines.join('\n');
-      this.markdownInput = val.substring(0, lineStart) + newBlock + val.substring(lineEnd);
+      ta.setSelectionRange(lineStart, lineEnd);
+      document.execCommand('insertText', false, newBlock);
       this.$nextTick(() => {
-        ta.focus();
-        ta.selectionStart = lineStart;
-        ta.selectionEnd = lineStart + newBlock.length;
+        ta.scrollTop = savedScrollTop;
+        ta.setSelectionRange(lineStart, lineStart + newBlock.length);
       });
     },
 
@@ -2876,16 +2901,24 @@ const markdown = \`![图片](img://\${imageId})\`;
     insertBlock(text) {
       const ta = this.$refs.editorTextarea;
       if (!ta) return;
-      const val = this.markdownInput;
+      const val = ta.value;
       const start = ta.selectionStart;
       const end = ta.selectionEnd;
+      const savedScrollTop = ta.scrollTop;
       const head = val.substring(0, start);
-      const needNL = head.length > 0 && !head.endsWith('\n');
-      const insert = (needNL ? '\n' : '') + text;
-      this.markdownInput = head + insert + val.substring(end);
+      // 块级元素需要与前文有空行（\n\n），否则表格/分割线等会被解析成列表续行
+      let prefix = '';
+      if (head.length > 0) {
+        if (head.endsWith('\n\n')) prefix = '';
+        else if (head.endsWith('\n')) prefix = '\n';
+        else prefix = '\n\n';
+      }
+      const insert = prefix + text;
+      ta.setSelectionRange(start, end);
+      document.execCommand('insertText', false, insert);
       this.$nextTick(() => {
-        ta.focus();
-        ta.selectionStart = ta.selectionEnd = start + insert.length;
+        ta.scrollTop = savedScrollTop;
+        ta.setSelectionRange(start + insert.length, start + insert.length);
       });
     },
 

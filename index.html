@@ -1804,6 +1804,7 @@
                 type="button"
                 class="md-tool-trigger"
                 :class="{ active: openToolbarGroup === group.name }"
+                @mousedown.prevent
                 @click="toggleToolbarGroup(group.name)"
               >
                 {{ group.name }}
@@ -1815,6 +1816,7 @@
                   class="md-tool-item"
                   v-for="id in group.items"
                   :key="id"
+                  @mousedown.prevent
                   @click="onToolbarClick(id)"
                 >
                   <span class="md-tool-item-label">{{ getCommand(id).label }}</span>
@@ -1822,7 +1824,6 @@
                 </button>
               </div>
             </div>
-            <span class="md-toolbar-hint">选中文字后点按钮即可 · 也可输入 / 唤出菜单</span>
           </div>
           <textarea
             ref="editorTextarea"
