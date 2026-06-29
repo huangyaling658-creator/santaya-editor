@@ -1417,7 +1417,11 @@ const markdown = \`![图片](img://\${imageId})\`;
       children.forEach((child, index) => {
         if (child.tagName === 'P') {
           const images = child.querySelectorAll('img');
-          if (images.length > 0) {
+          // 只有「纯图片段落」(除了图片之外没有任何文字) 才参与图片网格分组。
+          // 文字+图片混排的段落 (例如「一段话\n![](img)」会被渲染进同一个 <p>) 保持原样，
+          // 否则会被当成连续图片合并成网格，且整段 <p> 被删除时把文字也一起删掉。
+          const hasText = child.textContent.trim() !== '';
+          if (images.length > 0 && !hasText) {
             // 如果一个P标签内有多个图片，它们肯定是连续的
             if (images.length > 1) {
               // 多个图片在同一个P标签内，作为一组
