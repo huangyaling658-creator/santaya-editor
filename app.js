@@ -1238,8 +1238,9 @@ const markdown = \`![图片](img://\${imageId})\`;
 
       // 修复飞书等复制时的加粗格式断裂问题
       // 例如：**text** **more** -> **text more**（合并相邻的加粗片段）
-      // 处理 **空白** (结束后紧跟开始，中间有任意空白) -> 单个空格
-      content = content.replace(/\*\*\s+\*\*/g, ' ');
+      // 只合并同一行内的相邻加粗（空格/Tab），不能跨换行，
+      // 否则两个相邻的加粗段落（上段以**结尾、下段以**开头）会被误合并成一段
+      content = content.replace(/\*\*[ \t]+\*\*/g, ' ');
       // 处理 **** 或更多连续星号（通常是格式错误）-> 移除
       content = content.replace(/\*{4,}/g, '');
       // 处理 word** 或 **word 紧贴标点的情况（中文标点）
@@ -1248,7 +1249,7 @@ const markdown = \`![图片](img://\${imageId})\`;
       // 在中文左标点后的 ** 前添加零宽空格
       content = content.replace(/([（「『《〈【〔〖［｛"'])\*\*/g, '$1\u200B**');
       // 同样处理下划线格式
-      content = content.replace(/__\s+__/g, ' ');
+      content = content.replace(/__[ \t]+__/g, ' ');
       content = content.replace(/_{4,}/g, '');
 
       // 规范化列表项格式
